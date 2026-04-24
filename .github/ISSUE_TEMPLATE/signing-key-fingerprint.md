@@ -1,6 +1,6 @@
 ---
 name: Signing Certificate Identity (pinned)
-about: Out-of-band channel for the @automagik/genie release-signing certificate identity + OIDC issuer. Under cosign KEYLESS ONLY there is no public key fingerprint — operators cross-check the certificate-identity regexp and OIDC issuer against SECURITY.md and /.well-known/security.txt before trusting a release.
+about: Out-of-band channel for the @automagik-dev/aegis release-signing certificate identity + OIDC issuer. Under cosign KEYLESS ONLY there is no public key fingerprint — operators cross-check the certificate-identity regexp and OIDC issuer against SECURITY.md and /.well-known/security.txt before trusting a release.
 title: "SIGNING_CERT_IDENTITY_YYYYMMDD"
 labels: ["security", "pinned", "signing-identity"]
 assignees: []
@@ -31,9 +31,9 @@ assignees: []
 ## Current Certificate-Identity Pin
 
 ```
-certificate-identity-regexp: ^https://github.com/automagik-dev/genie/.github/workflows/release.yml@
+certificate-identity-regexp: ^https://github.com/automagik-dev/aegis/.github/workflows/release.yml@
 certificate-oidc-issuer:     https://token.actions.githubusercontent.com
-provenance source-uri:       github.com/automagik-dev/genie
+provenance source-uri:       github.com/automagik-dev/aegis
 ```
 
 ## Contract Metadata
@@ -66,7 +66,7 @@ If any channel diverges, treat the release as unsigned and follow the
 ```bash
 # Cosign keyless verification (sole verification path)
 cosign verify-blob \
-  --certificate-identity-regexp "^https://github.com/automagik-dev/genie/.github/workflows/release.yml@" \
+  --certificate-identity-regexp "^https://github.com/automagik-dev/aegis/.github/workflows/release.yml@" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   --signature <artifact>.sig \
   --certificate <artifact>.cert \
@@ -75,7 +75,7 @@ cosign verify-blob \
 # SLSA provenance verification
 slsa-verifier verify-artifact <artifact> \
   --provenance-path provenance.intoto.jsonl \
-  --source-uri github.com/automagik-dev/genie
+  --source-uri github.com/automagik-dev/aegis
 
 # End-to-end
 genie sec verify-install

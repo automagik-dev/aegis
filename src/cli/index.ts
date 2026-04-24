@@ -332,7 +332,7 @@ export function applySecScanExitCode(exitCode: number, deps: Pick<SecScanDeps, '
 // ---------------------------------------------------------------------------
 // verify-install
 //
-// `genie sec verify-install` walks the cosign + SLSA verification path that
+// `aegis verify-install` walks the cosign + SLSA verification path that
 // `scripts/verify-release.sh` documents:
 //   1. Locate a signed tarball + .sig + .cert + provenance.intoto.jsonl
 //      bundle on disk (either auto-discovered or user-supplied).
@@ -362,9 +362,9 @@ export const VERIFY_EXIT = {
 
 export type VerifyExitCode = (typeof VERIFY_EXIT)[keyof typeof VERIFY_EXIT];
 
-export const SIGNER_IDENTITY_REGEXP = '^https://github.com/automagik-dev/genie/.github/workflows/release.yml@';
+export const SIGNER_IDENTITY_REGEXP = '^https://github.com/automagik-dev/aegis/.github/workflows/release.yml@';
 export const SIGNER_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
-export const PROVENANCE_SOURCE_URI = 'github.com/automagik-dev/genie';
+export const PROVENANCE_SOURCE_URI = 'github.com/automagik-dev/aegis';
 
 const COSIGN_NO_KEY_SENTINEL = 'BEGIN COSIGN NO-PINNED-KEY SENTINEL';
 
@@ -683,13 +683,13 @@ export function registerCommands(program: Command, deps: SecScanDeps = defaultDe
       `
 Examples:
   # Quick triage of the current project and every home on the host.
-  $ genie sec scan --all-homes --root "$PWD"
+  $ aegis scan --all-homes --root "$PWD"
 
   # Full-host incident sweep — archive JSON for the audit trail.
-  $ genie sec scan --all-homes --root / --json > /tmp/scan-$(date -u +%Y%m%dT%H%M%SZ).json
+  $ aegis scan --all-homes --root / --json > /tmp/scan-$(date -u +%Y%m%dT%H%M%SZ).json
 
   # Targeted multi-service scan without touching other homes.
-  $ genie sec scan --root /srv/api --root /srv/worker --root /opt/vendor
+  $ aegis scan --root /srv/api --root /srv/worker --root /opt/vendor
 
 The scanner is read-only by design — it never mutates the host. See:
   docs/incident-response/canisterworm.md for the LIKELY COMPROMISED / AFFECTED / OBSERVED decision tree.
@@ -720,7 +720,7 @@ The scanner is read-only by design — it never mutates the host. See:
     .option('--quarantine-dir <path>', 'Override quarantine root (must be on same device as targets)')
     .option(
       '--unsafe-unverified <id>',
-      'Blast-radius flag — bypass the genie sec verify-install gate, logging the incident id + typed ack to $GENIE_SEC_AUDIT_LOG. When to reach for this: exactly the three legitimate contexts in docs/incident-response/canisterworm.md (burned signing identity, pre-signing release channel, integration test harness). Every other use is an audit finding.',
+      'Blast-radius flag — bypass the aegis verify-install gate, logging the incident id + typed ack to $GENIE_SEC_AUDIT_LOG. When to reach for this: exactly the three legitimate contexts in docs/incident-response/canisterworm.md (burned signing identity, pre-signing release channel, integration test harness). Every other use is an audit finding.',
     )
     .option(
       '--remediate-partial',
@@ -740,23 +740,23 @@ The scanner is read-only by design — it never mutates the host. See:
       `
 Examples:
   # Generate a dry-run plan from a persisted scan id and review it before applying.
-  $ genie sec remediate --dry-run --scan-id 01HW3RKX...
+  $ aegis remediate --dry-run --scan-id 01HW3RKX...
   $ jq '.actions[] | {type, target, reason}' "$GENIE_HOME/sec-scan/01HW3RKX.../plan.json"
 
   # Apply the reviewed plan. Typed per-action consent is required interactively.
-  $ genie sec remediate --apply --plan "$GENIE_HOME/sec-scan/01HW3RKX.../plan.json"
+  $ aegis remediate --apply --plan "$GENIE_HOME/sec-scan/01HW3RKX.../plan.json"
 
   # Apply with PID-kill authorization for two live processes the plan flagged.
-  $ genie sec remediate --apply --plan ./plan.json --kill-pid 42 --kill-pid 1337
+  $ aegis remediate --apply --plan ./plan.json --kill-pid 42 --kill-pid 1337
 
   # Incident-only: burned signing identity — run against a known rotation id.
-  $ genie sec remediate --apply --plan ./plan.json \\
+  $ aegis remediate --apply --plan ./plan.json \\
       --unsafe-unverified "SIGNING_CERT_IDENTITY_20260423"
   # Typed ack prompt: I_ACKNOWLEDGE_UNSIGNED_GENIE_SIGNING_CERT_IDENTITY_20260423
 
 Nothing is deleted without a recoverable copy under $GENIE_SEC_QUARANTINE_DIR. Undo with:
-  genie sec restore <quarantine-id>      # one item
-  genie sec rollback <scan-id>           # every action for a scan
+  aegis restore <quarantine-id>      # one item
+  aegis rollback <scan-id>           # every action for a scan
 `.trimStart(),
     )
     .action((options: SecRemediateCommandOptions) => {
@@ -774,7 +774,7 @@ Nothing is deleted without a recoverable copy under $GENIE_SEC_QUARANTINE_DIR. U
     )
     .option('--yes, -y', 'Non-interactive — pre-accepts the operator confirmation prompt (CI use only)')
     .option('--json', 'Emit a machine-readable final summary')
-    .option('--skip-reinstall', 'Do not run `bun add -g @automagik/genie@next` at the end')
+    .option('--skip-reinstall', 'Do not run `aegis update` at the end of the remediation')
     .option('--skip-rescan', 'Do not run the confirmation re-scan')
     .option(
       '--unsafe-unverified <id>',
@@ -786,19 +786,19 @@ Nothing is deleted without a recoverable copy under $GENIE_SEC_QUARANTINE_DIR. U
       `
 Examples:
   # Interactive: review the plan, type 'y' to apply, get a clean re-scan.
-  $ genie sec fix
+  $ aegis fix
 
   # CI / scripted: all consents pre-accepted, JSON summary at the end.
-  $ genie sec fix --yes --json > /var/log/genie-sec-fix.json
+  $ aegis fix --yes --json > /var/log/genie-sec-fix.json
 
   # Plan-only, no mutations.
-  $ genie sec fix --dry-run
+  $ aegis fix --dry-run
 
 Recovery after \`fix\` (nothing is destructive-without-recourse):
   # restore one quarantined item
-  $ genie sec restore <quarantine-id>
+  $ aegis restore <quarantine-id>
   # roll back every action for this scan
-  $ genie sec rollback <scan-id>
+  $ aegis rollback <scan-id>
 `.trimStart(),
     )
     .action((options: SecFixCommandOptions) => {
@@ -813,12 +813,12 @@ Recovery after \`fix\` (nothing is destructive-without-recourse):
       `
 Examples:
   # List quarantines, then restore a specific one by id.
-  $ genie sec quarantine list
-  $ genie sec restore Q01HW3RKX...
+  $ aegis quarantine list
+  $ aegis restore Q01HW3RKX...
 
 When to reach for this: a single quarantined item needs to come back (a legitimate config
 file was swept up, a service needs its original artefact restored). For bulk undo across
-an entire remediation run, use 'genie sec rollback <scan-id>' instead.
+an entire remediation run, use 'aegis rollback <scan-id>' instead.
 `.trimStart(),
     )
     .action((quarantineId: string) => {
@@ -834,12 +834,12 @@ an entire remediation run, use 'genie sec rollback <scan-id>' instead.
       `
 Examples:
   # Undo an entire --apply that broke the host.
-  $ genie sec rollback 01HW3RKX...
+  $ aegis rollback 01HW3RKX...
 
   # Emit a JSON summary for the post-mortem.
-  $ genie sec rollback 01HW3RKX... --json | jq '.restored, .failed'
+  $ aegis rollback 01HW3RKX... --json | jq '.restored, .failed'
 
-When to reach for this: 'genie sec remediate --apply' completed but the host is now
+When to reach for this: 'aegis remediate --apply' completed but the host is now
 broken (a service fails to start, a dependency is gone). Rollback is safe — it only
 touches items the audit log recorded under this scan id.
 `.trimStart(),
@@ -860,13 +860,13 @@ touches items the audit log recorded under this scan id.
       `
 Examples:
   # Human-readable inventory.
-  $ genie sec quarantine list
+  $ aegis quarantine list
 
   # Pipe to jq for automation.
-  $ genie sec quarantine list --json | jq '.[] | select(.status=="active") | .id'
+  $ aegis quarantine list --json | jq '.[] | select(.status=="active") | .id'
 
 When to reach for this: you need to locate the quarantine id of a specific item before
-running 'genie sec restore', or audit what is still under quarantine before running gc.
+running 'aegis restore', or audit what is still under quarantine before running gc.
 `.trimStart(),
     )
     .action((options: SecQuarantineListOptions) => {
@@ -891,9 +891,9 @@ running 'genie sec restore', or audit what is still under quarantine before runn
       `
 Examples:
   # Routine cleanup — safe default threshold.
-  $ genie sec quarantine gc --older-than 30d
+  $ aegis quarantine gc --older-than 30d
   # First run prints: refused — re-run with --confirm-gc CONFIRM-GC-a1b2c3
-  $ genie sec quarantine gc --older-than 30d --confirm-gc CONFIRM-GC-a1b2c3
+  $ aegis quarantine gc --older-than 30d --confirm-gc CONFIRM-GC-a1b2c3
 
 Active quarantines (referenced by an unfinished remediation) are always refused — gc
 only prunes restored or abandoned quarantines.
@@ -905,7 +905,7 @@ only prunes restored or abandoned quarantines.
     });
   program
     .command('verify-install')
-    .description('Verify the cosign signature + SLSA provenance of the running @automagik/genie release.')
+    .description('Verify the cosign signature + SLSA provenance of the running @automagik-dev/aegis release.')
     .option(
       '--offline',
       'Blast-radius flag — skip the Rekor transparency-log check (signature + cert still verified). When to reach for this: an air-gapped or locked-down incident-response host with no outbound network. Revoked certs will not be detected; never use on a production gate.',
@@ -924,13 +924,13 @@ only prunes restored or abandoned quarantines.
       `
 Examples:
   # Verify the currently installed binary.
-  $ genie sec verify-install
+  $ aegis verify-install
 
   # Verify a downloaded tarball against the pinned identity.
-  $ genie sec verify-install --tarball ./automagik-genie-4.260422.4.tgz
+  $ aegis verify-install --tarball ./automagik-genie-4.260422.4.tgz
 
   # Air-gapped host: skip Rekor transparency log (signature + cert still checked).
-  $ genie sec verify-install --offline --bundle-dir ./release-assets
+  $ aegis verify-install --offline --bundle-dir ./release-assets
 
 Exit codes:
   0 — verified (signature + provenance both pass)
@@ -940,7 +940,7 @@ Exit codes:
   5 — no signature material found (expected .sig + .cert + provenance.intoto.jsonl)
   127 — cosign or slsa-verifier not installed (see docs.sigstore.dev)
 
-Must return exit 0 before 'genie sec remediate --apply' will proceed. See
+Must return exit 0 before 'aegis remediate --apply' will proceed. See
 docs/incident-response/canisterworm.md for the legitimate --unsafe-unverified contexts.
 `.trimStart(),
     )
@@ -1016,7 +1016,7 @@ For the signature-update path, see: aegis signatures update --help
           '  https://github.com/automagik-dev/aegis/blob/dev/docs/signatures/',
           '',
           'Canonical wish (design-reviewed APPROVED, pending implementation):',
-          '  automagik-dev/genie .genie/wishes/sec-signature-registry/WISH.md',
+          '  (cross-repo reference) automagik-dev/genie :: .genie/wishes/sec-signature-registry/WISH.md',
           '',
         ].join('\n'),
       );

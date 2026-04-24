@@ -52,25 +52,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BASE=$(jq -r '.version' package.json)
-          TAG="v${BASE}"
-
-          if gh release view "${TAG}" > /dev/null 2>&1; then
-            echo "Release ${TAG} already exists — deriving hotfix version."
-            TODAY=$(date -u +%y%m%d)
-            EXISTING=$(gh release list --limit 100 --json tagName \
-              -q "[.[].tagName | select(startswith(\"v4.${TODAY}.\"))] | length")
-            BUILD=$((EXISTING + 1))
-            VERSION="4.${TODAY}.${BUILD}"
-            echo "Hotfix version: v${VERSION}"
-            echo "hotfix=true" >> "$GITHUB_OUTPUT"
+          # Tag-triggered: github.ref_name is the tag (e.g. v0.1.0).
+          # workflow_dispatch: fall back to package.json version.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE=$(jq -r '.version' package.json)
+            TAG="v${BASE}"
           else
-            VERSION="${BASE}"
-            echo "hotfix=false" >> "$GITHUB_OUTPUT"
+            TAG="${{ github.ref_name }}"
+            BASE="${TAG#v}"
           fi
 
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && gh release view "${TAG}" > /dev/null 2>&1; then
+            # Manual re-run for a version that already shipped — refuse. Humans
+            # should bump package.json (or push a new tag) instead of silently
+            # rebuilding an older release.
+            echo "Release ${TAG} already exists; refusing to re-run workflow_dispatch for a shipped version. Bump package.json or push a new v* tag." >&2
+            exit 1
+          fi
+
+          echo "version=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${TAG} (version=${BASE})"
 
       - name: Find previous release tag
         id: prev
@@ -109,6 +111,18 @@ jobs:
 
       - name: Build CLI
         run: bun run build
+
+      - name: Sync package.json version to tag (just-in-time)
+        run: |
+          TARGET_VERSION="${{ steps.ver.outputs.version }}"
+          CURRENT=$(jq -r '.version' package.json)
+          if [ "${CURRENT}" != "${TARGET_VERSION}" ]; then
+            echo "Syncing package.json version: ${CURRENT} -> ${TARGET_VERSION} (just-in-time, not committed)"
+            jq --arg v "${TARGET_VERSION}" '.version = $v' package.json > /tmp/pkg.json
+            mv /tmp/pkg.json package.json
+          else
+            echo "package.json version already matches tag: ${TARGET_VERSION}"
+          fi
 
       - name: Pack release tarball
         id: pack
@@ -185,7 +199,7 @@ jobs:
           TAG="${{ steps.ver.outputs.tag }}"
           TARBALL="${{ steps.pack.outputs.tarball }}"
           if [ -z "$RELEASE_NOTES" ]; then
-            RELEASE_NOTES="Initial release of genie v4 CLI."
+            RELEASE_NOTES="Initial release of @automagik-dev/aegis — npm supply-chain incident-response CLI."
           fi
           printf '%s' "$RELEASE_NOTES" > /tmp/release-notes.md
 
@@ -358,7 +372,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write   # for provenance on npm publish (Node 22+ supports this)
+      id-token: write   # harmless here; kept for future npmjs.com provenance if/when we add that target
     steps:
       - uses: actions/checkout@v4
         with:
@@ -406,10 +420,14 @@ jobs:
             exit 1
           fi
           echo "Publishing ${TARBALL} to https://npm.pkg.github.com"
-          # --provenance adds an npm-side provenance attestation (Node 22+) on
-          # top of our SLSA L3 + cosign layers. Triple-attested supply chain:
-          # cosign identity pin + SLSA generator + npm provenance.
-          npm publish "${TARBALL}" --provenance --access public
+          # NOTE: `npm publish --provenance` is officially supported ONLY on
+          # the public npmjs.com registry. GitHub Packages does not accept
+          # npm-side provenance attestations today — the flag is omitted here
+          # and we rely on the two-layer attestation (cosign identity pin +
+          # SLSA L3 generator) already verified by `verify` above. The primary
+          # distribution channel is install.sh pulling signed tarballs straight
+          # from GitHub Releases where the full chain is verified.
+          npm publish "${TARBALL}" --access public
 
       - name: Verify package visible on GitHub Packages
         env:

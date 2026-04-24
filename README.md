@@ -109,7 +109,7 @@ Bundled signatures cover the **CanisterWorm / TeamPCP (April 2026)** incident:
 - **Read-only scanner.** `aegis scan` never mutates host state.
 - **Version-gated matching.** A package flagged only when its installed version is in the compromise list. `pgserve@1.1.10` (clean) does not fire a `pgserve` IOC.
 - **Self-skip.** The aegis binary itself never appears in its own findings.
-- **Scoring honest.** Shell-history `npm uninstall` lines (remediation) and `genie sec scan` lines (investigation) do not inflate the suspicion score.
+- **Scoring honest.** Shell-history `npm uninstall` lines (remediation) and `aegis scan` lines (investigation) do not inflate the suspicion score.
 - **Coverage-gap banner.** If the scanner hit caps or skipped roots, the banner appears at the top of the report. Exit code `2`.
 
 ---
