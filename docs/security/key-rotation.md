@@ -40,7 +40,7 @@ There is no routine calendar rotation. Rotation is driven by events, not time.
 | Minimum approvers | Two Namastex security officers (independent GitHub accounts)                                    |
 | Pinning channels  | `SECURITY.md`, `/.well-known/security.txt`, pinned GitHub issue                                 |
 | Grace period      | Minimum 72 hours in which the OLD and NEW identities both verify                                |
-| Retirement test   | `genie sec verify-install` against a post-rotation release MUST exit 0                          |
+| Retirement test   | `aegis verify-install` against a post-rotation release MUST exit 0                          |
 | Audit trail       | Rotation PR signed by both officers; the pinned issue records the `Filed by (GPG fingerprint)`. |
 
 If any of the five constraints above cannot be met, the rotation does not
@@ -88,10 +88,10 @@ ship. Do NOT reduce the grace period to "fix" a broken window.
    accept BOTH the old and new certificate identities. In practice that means
    keeping the old entry in `SECURITY.md` under a `## Previous pinning`
    heading so operators running the previous release do not fail
-   `genie sec verify-install`.
+   `aegis verify-install`.
 2. The pinned issue is updated with the old value under its
    `## Previous pinning` section — never deleted.
-3. Operators running `genie sec verify-install --offline` during the grace
+3. Operators running `aegis verify-install --offline` during the grace
    period should see `verified_at` timestamps newer than the rotation epoch.
    Any operator whose `verified_at` predates the rotation is instructed to
    pull the new release.
@@ -111,7 +111,7 @@ ship. Do NOT reduce the grace period to "fix" a broken window.
 
 The rotation procedure MUST be practiced at least once per quarter using
 throwaway test identities. A successful dry-run ends with
-`genie sec verify-install` returning exit 0 against a test-release bundle
+`aegis verify-install` returning exit 0 against a test-release bundle
 signed by the rehearsed identity.
 
 ### Goal
@@ -147,12 +147,12 @@ EOF
 # 4. Exercise the verify-install command. Expected: exit 4 (provenance
 #    invalid) because the drill provenance is intentionally invalid. Good —
 #    that proves the failure mode works. The cosign step should succeed.
-genie sec verify-install --bundle-dir "${DRILL}" --json || echo "exit=$?"
+aegis verify-install --bundle-dir "${DRILL}" --json || echo "exit=$?"
 
 # 5. Flip one byte in the tarball and re-run. Expected: exit 2 (signature
 #    invalid). Good — tamper detection works end-to-end.
 printf '\x01' | dd of=drill.tgz bs=1 count=1 conv=notrunc
-genie sec verify-install --bundle-dir "${DRILL}" --json || echo "exit=$?"
+aegis verify-install --bundle-dir "${DRILL}" --json || echo "exit=$?"
 
 # 6. Clean up.
 rm -rf "${DRILL}"
@@ -190,4 +190,4 @@ The following have bitten prior rotations and MUST NOT be repeated:
 - `src/sec/unsafe-verify.ts` — the `--unsafe-unverified` contract that
   operators fall back on if a rotation goes sideways.
 - `scripts/verify-release.sh` — the local verification script that mirrors
-  `genie sec verify-install`.
+  `aegis verify-install`.

@@ -3,16 +3,16 @@
  * sec-remediate.cjs
  *
  * Reversible, auditable remediation pathway for findings produced by
- * `genie sec scan`. Sibling payload to `scripts/sec-scan.cjs` — it never
+ * `aegis scan`. Sibling payload to `scripts/sec-scan.cjs` — it never
  * detects, it never deletes, it only quarantines, prints rotation guidance,
  * or (with explicit consent) sends a SIGTERM to a pre-listed PID.
  *
  * Usage:
- *   genie sec remediate --dry-run --scan-id <ulid>
- *   genie sec remediate --dry-run --scan-report <path>
- *   genie sec remediate --apply --plan <path>
- *   genie sec remediate --resume <resume-file>
- *   genie sec restore <quarantine-id>
+ *   aegis remediate --dry-run --scan-id <ulid>
+ *   aegis remediate --dry-run --scan-report <path>
+ *   aegis remediate --apply --plan <path>
+ *   aegis remediate --resume <resume-file>
+ *   aegis restore <quarantine-id>
  *
  * Exit codes:
  *   0 = success (dry-run wrote plan, apply finished cleanly, restore succeeded)
@@ -383,7 +383,7 @@ function parseArgs(argv) {
 function printHelp() {
   process.stdout.write(
     [
-      'genie sec remediate — reversible, auditable host-compromise remediation',
+      'aegis remediate — reversible, auditable host-compromise remediation',
       '',
       'Modes:',
       '  --dry-run --scan-report <path>           Generate plan from a scan JSON file',
@@ -967,7 +967,7 @@ async function applyPlan(options) {
   const sizeBytes = dirSizeBytes(runRoot);
   if (sizeBytes > 100 * 1024 * 1024) {
     process.stderr.write(
-      `\nWARNING: quarantine size ${(sizeBytes / 1024 / 1024).toFixed(1)}MB exceeds 100MB threshold. Run \`genie sec restore <id>\` once verified, or \`genie sec quarantine gc --older-than <duration>\` to release space.\n`,
+      `\nWARNING: quarantine size ${(sizeBytes / 1024 / 1024).toFixed(1)}MB exceeds 100MB threshold. Run \`aegis restore <id>\` once verified, or \`aegis quarantine gc --older-than <duration>\` to release space.\n`,
     );
   }
 
@@ -1039,7 +1039,7 @@ function printCompletionBanner({
 }) {
   const lines = [
     '',
-    '─── genie sec remediate complete ───',
+    '─── aegis remediate complete ───',
     `scan_id        : ${scanId}`,
     `quarantine id  : ${runTs}`,
     `quarantine dir : ${runRoot}`,
@@ -1047,11 +1047,11 @@ function printCompletionBanner({
     `audit log      : ${auditPath}`,
     `actions        : ${completed} completed, ${skipped} skipped, ${failed} failed`,
     '',
-    `Restore individual quarantine: genie sec restore ${runTs}`,
-    `Bulk undo:                     genie sec rollback ${scanId}`,
+    `Restore individual quarantine: aegis restore ${runTs}`,
+    `Bulk undo:                     aegis rollback ${scanId}`,
   ];
   if (resumeFile) {
-    lines.push(`Resume partial:                genie sec remediate --resume ${resumeFile}`);
+    lines.push(`Resume partial:                aegis remediate --resume ${resumeFile}`);
   }
   lines.push('');
   process.stdout.write(`${lines.join('\n')}\n`);
@@ -1084,13 +1084,13 @@ function runDryRun(options) {
     process.stdout.write(
       [
         '',
-        '─── genie sec remediate (dry-run) ───',
+        '─── aegis remediate (dry-run) ───',
         `scan_id    : ${plan.scan_id}`,
         `plan_id    : ${plan.plan_id}`,
         `actions    : ${plan.actions.length}`,
         `plan path  : ${planPath}`,
         '',
-        `Apply with: genie sec remediate --apply --plan ${planPath}`,
+        `Apply with: aegis remediate --apply --plan ${planPath}`,
         '',
       ].join('\n'),
     );
@@ -1517,7 +1517,7 @@ async function main() {
       process.stdout.write(
         [
           '',
-          '─── genie sec rollback complete ───',
+          '─── aegis rollback complete ───',
           `rollback_id    : ${summary.rollback_id}`,
           `scan_id        : ${summary.scan_id}`,
           `started_at     : ${summary.started_at}`,
@@ -1557,7 +1557,7 @@ async function main() {
       const eligibleSize = (summary.eligible_size_bytes / 1024).toFixed(1);
       const lines = [
         '',
-        '─── genie sec quarantine gc ───',
+        '─── aegis quarantine gc ───',
         `older_than        : ${summary.older_than}`,
         `eligible ids      : ${summary.eligible_ids.length}`,
         `eligible size     : ${eligibleSize} KB`,

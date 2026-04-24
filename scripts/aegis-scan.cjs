@@ -24,8 +24,8 @@
  *   node scripts/sec-scan.cjs
  *   node scripts/sec-scan.cjs --json
  *   node scripts/sec-scan.cjs --all-homes --root /srv --root /opt
- *   genie sec scan
- *   genie sec scan --json --all-homes
+ *   aegis scan
+ *   aegis scan --json --all-homes
  *
  * Exit codes:
  *   0 = no findings
@@ -959,7 +959,7 @@ function printHelp(stream) {
     `${`
 Usage:
   node scripts/sec-scan.cjs [options]
-  genie sec scan [options]
+  aegis scan [options]
 
 Options:
   --json                       Print JSON envelope to stdout
@@ -986,8 +986,8 @@ Exit codes:
 
 Examples:
   node scripts/sec-scan.cjs --json
-  genie sec scan --all-homes --redact --events-file /tmp/scan.jsonl
-  GENIE_SEC_SCAN_DISABLED=1 genie sec scan   # kill switch, exits 0
+  aegis scan --all-homes --redact --events-file /tmp/scan.jsonl
+  GENIE_SEC_SCAN_DISABLED=1 aegis scan   # kill switch, exits 0
 `.trim()}\n`,
   );
 }
@@ -3141,7 +3141,7 @@ function scanLiveProcesses(report) {
     const [, pid, ppid, user, elapsed, command] = match;
 
     // Self-exclusion: the running scanner + any wrapping shell that invoked
-    // it (e.g. `bash -c "npx @automagik/genie sec scan …"`) will always
+    // it (e.g. `bash -c "aegis scan …"`) will always
     // match the tracked-package regexes in their own cmdline. Ignore both.
     if (String(pid) === String(process.pid)) continue;
     if (String(pid) === String(process.ppid)) continue;

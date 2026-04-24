@@ -773,17 +773,17 @@ jq -r '.status' /tmp/rescan.json
 
 ### 11.6 Escalation — rollback
 
-Use `genie sec rollback <scan_id>` when `aegis remediate --apply` completed but broke something on the host. Rollback walks the audit log in reverse, restoring every quarantined item to its original path with sha256-verified content.
+Use `aegis rollback <scan_id>` when `aegis remediate --apply` completed but broke something on the host. Rollback walks the audit log in reverse, restoring every quarantined item to its original path with sha256-verified content.
 
 **When to reach for this:** a service fails to start after remediation, a legitimate config file was quarantined, a dependency your application needs is gone. Rollback is safe — it only touches items the audit log recorded.
 
 ```bash
 # Bulk rollback: walks $GENIE_SEC_AUDIT_LOG in reverse for this scan_id.
-genie sec rollback "$SCAN_ID"
+aegis rollback "$SCAN_ID"
 
 # Per-item: if you only need to restore a specific quarantine id.
-genie sec quarantine list
-genie sec restore <quarantine-id>
+aegis quarantine list
+aegis restore <quarantine-id>
 ```
 
 ### 11.7 Escalation — `--unsafe-unverified`
