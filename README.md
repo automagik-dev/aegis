@@ -10,23 +10,60 @@ Spun out of `@automagik/genie sec` after the April 2026 CanisterWorm / TeamPCP i
 
 ---
 
+## Installation
+
+`aegis` is published **only** to GitHub Packages (`npm.pkg.github.com`), never to `npmjs.com`. This is a deliberate trust-model decision — see [Why GitHub Packages](#why-github-packages) below.
+
+One-time setup:
+
+```bash
+# 1. Create a GitHub PAT with `read:packages` scope:
+#    https://github.com/settings/tokens  (classic — pick "read:packages")
+#    or a fine-grained token scoped to automagik-dev with Packages: Read.
+
+# 2. Copy the shipped .npmrc.example to your home directory and fill in the token:
+cat > ~/.npmrc <<EOF
+@automagik-dev:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_PAT_HERE
+EOF
+chmod 600 ~/.npmrc
+```
+
 ## Quick start
 
 ```bash
 # One-shot scan
-npx -y @automagik/aegis scan --all-homes --root "$PWD"
+npx @automagik-dev/aegis scan --all-homes --root "$PWD"
 
 # Interactive incident fix (scan → kill processes → purge caches → reinstall clean → re-scan)
-npx -y @automagik/aegis fix
+npx @automagik-dev/aegis fix
 
 # Verify your installed binary is genuine (cosign keyless + SLSA L3)
-npx -y @automagik/aegis verify-install
+npx @automagik-dev/aegis verify-install
 ```
 
 Exit codes:
 - `0` — clean and complete
 - `1` — findings present
 - `2` — clean but incomplete (capped roots, banner at top tells you what was skipped)
+
+## Why GitHub Packages
+
+`@automagik/genie sec` (the scanner `aegis` was spun out of) shipped via `npmjs.com`. During the April 2026 CanisterWorm / TeamPCP incident, the weaponization vector was `npmjs.com` itself — compromised publishes of multiple packages propagated within hours. **Our scanner was being shipped through the same pipe that got compromised.**
+
+`aegis` is published only to GitHub Packages, tying the trust boundary of the tool to the same platform that hosts the code, the PRs, the cosign OIDC identity, the SLSA provenance, and the release workflow. The chain is:
+
+1. Code review on GitHub (2-officer Namastex sign-off)
+2. Tag push triggers `.github/workflows/release.yml`
+3. Cosign keyless signs the tarball (OIDC identity tied to this workflow path)
+4. SLSA L3 provenance attestation generated
+5. Tamper-detection self-test proves both verifiers reject a mutated byte
+6. GitHub Release created with signed assets
+7. Same tarball published to GitHub Packages with `npm publish --provenance` (npm provenance = 3rd attestation layer on top of cosign + SLSA)
+
+Triple-attested supply chain, one platform boundary. No `npmjs.com` in the trust path.
+
+**Cost of this decision:** users need a GitHub PAT to install (even for public packages, GitHub Packages requires auth). We believe the trust gain outweighs the install friction. See [`.npmrc.example`](.npmrc.example).
 
 ---
 
