@@ -193,12 +193,20 @@ jobs:
           # object only appears on the repo once its signed assets are attached.
           # If the release already exists (hotfix re-run), fall through to an
           # idempotent `upload --clobber`.
+          # install.sh is the primary distribution channel. Ship it alongside
+          # the signed tarball so `curl -fsSL .../releases/download/<tag>/install.sh | bash`
+          # works without needing the main branch. The copy in the release
+          # assets is pinned to the tag; the copy at raw.githubusercontent.com/main
+          # always points at the latest tag-matching version after dev merges.
+          cp install.sh /tmp/install.sh
+
           if gh release view "${TAG}" > /dev/null 2>&1; then
             echo "Release ${TAG} already exists — replacing signed assets."
             gh release upload "${TAG}" \
               "${TARBALL}" \
               "${TARBALL}.sig" \
               "${TARBALL}.cert" \
+              /tmp/install.sh \
               --clobber
           else
             gh release create "${TAG}" \
@@ -207,7 +215,8 @@ jobs:
               --notes-file /tmp/release-notes.md \
               "${TARBALL}" \
               "${TARBALL}.sig" \
-              "${TARBALL}.cert"
+              "${TARBALL}.cert" \
+              /tmp/install.sh
           fi
 
   # SLSA Level 3 provenance via the upstream reusable workflow. The reusable
