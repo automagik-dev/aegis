@@ -948,6 +948,138 @@ docs/incident-response/canisterworm.md for the legitimate --unsafe-unverified co
       const exitCode = runVerifyInstallCommand(options, deps);
       applySecScanExitCode(exitCode, deps);
     });
+
+  // --- aegis update -----------------------------------------------------------
+  // Self-update the installed binary by re-running the install.sh pipeline.
+  // Keeps cosign + SLSA verification on the update path (same trust boundary
+  // as the initial install). Does NOT touch signatures — that's a separate
+  // subcommand (`aegis signatures update`) covered by the Phase 2 subscription
+  // system. Today `aegis signatures update` prints a roadmap stub.
+  program
+    .command('update')
+    .description('Self-update the aegis binary to the latest signed release (cosign + SLSA re-verified)')
+    .option('--check', 'Report whether a newer release exists without installing')
+    .option('--version <tag>', 'Install a specific release tag instead of latest (e.g. v0.1.1)')
+    .option('--skip-verify', 'Bypass cosign + SLSA verification (air-gapped / test only)')
+    .option('--force', 'Reinstall even if the installed version matches the target')
+    .addHelpText(
+      'after',
+      `
+Under the hood this invokes the aegis install.sh pipeline:
+  curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh \\
+    | bash -s -- [--version <tag>] [--skip-verify]
+
+Why not in-process: the installer is a shell script by design so it never
+has to self-modify a running Node process. It atomically swaps the symlink
+at $PREFIX/bin/aegis to the new payload after verification. Rollback is a
+matter of pointing the symlink back to the previous install dir under
+$AEGIS_HOME (default ~/.aegis/).
+
+For the signature-update path, see: aegis signatures update --help
+`.trimStart(),
+    )
+    .action((options: { check?: boolean; version?: string; skipVerify?: boolean; force?: boolean }) => {
+      const exitCode = runAegisUpdate(options, deps);
+      applySecScanExitCode(exitCode, deps);
+    });
+
+  // --- aegis signatures update (Phase 2 stub) ---------------------------------
+  // Placeholder namespace for the Phase 2 signature subscription system.
+  // See docs/signatures/ and the canonical wish at the genie repo path
+  // .genie/wishes/sec-signature-registry/WISH.md for the full design.
+  const signatures = program
+    .command('signatures')
+    .description('Signature-pack management (Phase 2 — roadmap, not yet shipped)');
+
+  signatures
+    .command('update')
+    .description('Update signature packs from @automagik-dev/aegis-signatures (Phase 2 — not yet available)')
+    .option('--dry-run', 'Show what would be updated without fetching')
+    .option('--check', 'Only check for newer pack versions')
+    .action(() => {
+      process.stderr.write(
+        [
+          '',
+          '⚠ aegis signatures update — Phase 2, not yet available',
+          '',
+          'Today, IOC signatures ship inline inside the scanner binary at',
+          'scripts/aegis-scan.cjs. Phase 2 will refactor detection to load',
+          'YAML signature packs from @automagik-dev/aegis-signatures (a',
+          'separate signed npm package with independent release cadence).',
+          '',
+          'Until Phase 2 lands, running `aegis update` is the only way to',
+          'refresh your IOC coverage — the signatures ship bundled with the',
+          'binary. The tool will remind you when your installed version is',
+          'more than 14 days old.',
+          '',
+          'Roadmap:',
+          '  https://github.com/automagik-dev/aegis/blob/dev/docs/signatures/',
+          '',
+          'Canonical wish (design-reviewed APPROVED, pending implementation):',
+          '  automagik-dev/genie .genie/wishes/sec-signature-registry/WISH.md',
+          '',
+        ].join('\n'),
+      );
+      deps.setExitCode(64); // EX_USAGE — command recognized but not available yet
+    });
+
+  signatures
+    .command('list')
+    .description('List loaded signature packs (Phase 2 — not yet available)')
+    .action(() => {
+      process.stderr.write(
+        '⚠ aegis signatures list — Phase 2, not yet available. See aegis signatures update --help\n',
+      );
+      deps.setExitCode(64);
+    });
+}
+
+// ============================================================================
+// runAegisUpdate — self-update via install.sh
+// ============================================================================
+
+function runAegisUpdate(
+  options: { check?: boolean; version?: string; skipVerify?: boolean; force?: boolean },
+  deps: SecScanDeps,
+): number {
+  const installScriptUrl = 'https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh';
+
+  // Read current install metadata if present.
+  let currentVersion: string | null = null;
+  const aegisHome = process.env.AEGIS_HOME ?? `${process.env.HOME ?? ''}/.aegis`;
+  const metaPath = `${aegisHome}/install.json`;
+  try {
+    if (deps.existsSync(metaPath)) {
+      const meta = JSON.parse(deps.readFileSync(metaPath, 'utf8')) as { version?: string };
+      currentVersion = meta.version ?? null;
+    }
+  } catch {
+    // no-op: missing metadata treated as a first-install scenario
+  }
+
+  if (options.check) {
+    const msg = currentVersion
+      ? `Installed: ${currentVersion}\nCheck for updates manually:\n  curl -fsSL https://api.github.com/repos/automagik-dev/aegis/releases/latest | jq -r .tag_name\n`
+      : 'No aegis install metadata found at ~/.aegis/install.json. Run install.sh first.\n';
+    process.stderr.write(msg);
+    return 0;
+  }
+
+  const installArgs = ['-s', '--'];
+  if (options.version) installArgs.push('--version', options.version);
+  if (options.skipVerify) installArgs.push('--skip-verify');
+
+  // Build: `curl -fsSL <url> | bash <args>`
+  const cmd = `curl -fsSL ${installScriptUrl} | bash ${installArgs.map((a) => (a.startsWith('--') ? a : `'${a}'`)).join(' ')}`;
+
+  process.stderr.write(`==> aegis update: invoking installer pipeline\n    ${cmd}\n\n`);
+
+  const result = deps.spawnSync('bash', ['-c', cmd], { stdio: 'inherit' });
+  if (result.error) {
+    process.stderr.write(`aegis update: installer invocation failed: ${result.error.message}\n`);
+    return 1;
+  }
+  return result.status ?? 1;
 }
 
 // ============================================================================
