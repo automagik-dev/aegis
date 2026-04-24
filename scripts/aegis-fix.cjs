@@ -27,11 +27,11 @@
  * evidence subset defined there.
  *
  * Usage:
- *   genie sec fix                    # default: scan → plan → confirm → apply → reinstall → rescan
- *   genie sec fix --yes              # non-interactive
- *   genie sec fix --skip-reinstall   # skip step 5 (keep current binary)
- *   genie sec fix --skip-rescan      # skip step 6
- *   genie sec fix --json             # machine-readable final summary
+ *   aegis fix                    # default: scan → plan → confirm → apply → reinstall → rescan
+ *   aegis fix --yes              # non-interactive
+ *   aegis fix --skip-reinstall   # skip step 5 (keep current binary)
+ *   aegis fix --skip-rescan      # skip step 6
+ *   aegis fix --json             # machine-readable final summary
  */
 
 const { spawnSync } = require('node:child_process');
@@ -91,7 +91,7 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  process.stdout.write(`Usage: genie sec fix [options]
+  process.stdout.write(`Usage: aegis fix [options]
 
 One-shot CanisterWorm incident remediation. Orchestrates the full cleanup
 playbook so you do not have to chain scan → plan → apply → reinstall → rescan
@@ -114,7 +114,7 @@ Options:
   --help, -h               Show this help.
 
 Recovery paths (none of this is destructive-without-recourse):
-  - Quarantined files/dirs: genie sec restore <quarantine-id>
+  - Quarantined files/dirs: aegis restore <quarantine-id>
   - Purged caches: re-fetched from registry on next install
   - Reinstalled binary: the old compromised one is removed from global,
     but the quarantine still has its bytes if you need them.
@@ -259,7 +259,7 @@ function runScan() {
     }
   } else {
     process.stderr.write(
-      `  ${TTY.yellow}running as user $(id -un) — for full coverage of other homes + /etc/cron + /etc/systemd + all PIDs, re-run under ${TTY.bold}sudo -E env "PATH=$PATH" genie sec fix${TTY.reset}\n`,
+      `  ${TTY.yellow}running as user $(id -un) — for full coverage of other homes + /etc/cron + /etc/systemd + all PIDs, re-run under ${TTY.bold}sudo -E env "PATH=$PATH" aegis fix${TTY.reset}\n`,
     );
   }
   const scanArgs = [SCAN_SCRIPT, '--json', '--no-progress', '--redact'];
@@ -477,7 +477,7 @@ function showPlanSummary(plan, options, envelope) {
       SEVERITY.DESTRUCTIVE,
       'REMOVE INSTALL DIR',
       path,
-      'clean binary reinstalls in step 5; malicious bytes are quarantined (genie sec restore)',
+      'clean binary reinstalls in step 5; malicious bytes are quarantined (aegis restore)',
     );
   }
 
@@ -827,7 +827,7 @@ function main() {
       warn(`Residual findings remain. status=${status} score=${score}/100 — review manually.`);
     }
   } else {
-    info('re-scan skipped or failed — run `genie sec scan --all-homes --redact` to confirm.');
+    info('re-scan skipped or failed — run `aegis scan --all-homes --redact` to confirm.');
   }
 
   if (options.json) {
@@ -863,8 +863,8 @@ function main() {
   }
 
   info('Recovery commands:');
-  info('  • Restore a quarantined item: genie sec restore <id>');
-  info(`  • Rollback everything for this scan: genie sec rollback ${envelope.scan_id || '<scan-id>'}`);
+  info('  • Restore a quarantined item: aegis restore <id>');
+  info(`  • Rollback everything for this scan: aegis rollback ${envelope.scan_id || '<scan-id>'}`);
   info('  • Rotate credentials the payload may have read:');
   info('    npm token: https://www.npmjs.com/settings/<you>/tokens');
   info('    GitHub PAT: https://github.com/settings/tokens');

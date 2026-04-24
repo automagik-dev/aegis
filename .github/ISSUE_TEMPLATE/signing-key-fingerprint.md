@@ -78,13 +78,13 @@ slsa-verifier verify-artifact <artifact> \
   --source-uri github.com/automagik-dev/aegis
 
 # End-to-end
-genie sec verify-install
+aegis verify-install
 ```
 
 ## Reporting a Suspected Compromise
 
 If the certificate-identity or OIDC issuer appears altered, or a release
 verifies under an identity that does NOT appear here, email
-`security@namastex.com` immediately. Do NOT run `genie sec remediate --apply`
+`security@namastex.com` immediately. Do NOT run `aegis remediate --apply`
 against any host until a new pinning issue is filed and the three channels
 re-converge.

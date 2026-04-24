@@ -815,8 +815,8 @@ describe('sec-remediate completion banner + disk warning', () => {
       env(homeDir),
     );
     expect(apply.status).toBe(0);
-    expect(apply.stdout).toContain('genie sec restore');
-    expect(apply.stdout).toMatch(new RegExp(`genie sec rollback ${scanId}`));
+    expect(apply.stdout).toContain('aegis restore');
+    expect(apply.stdout).toMatch(new RegExp(`aegis rollback ${scanId}`));
   });
 
   test('apply emits stderr warning when quarantine exceeds 100MB', async () => {
@@ -844,7 +844,7 @@ describe('sec-remediate completion banner + disk warning', () => {
     );
     expect(apply.status).toBe(0);
     expect(apply.stderr).toMatch(/WARNING: quarantine size \d+(\.\d+)?MB exceeds 100MB threshold/);
-    expect(apply.stderr).toContain('genie sec quarantine gc');
+    expect(apply.stderr).toContain('aegis quarantine gc');
   }, 15_000);
 });
 
