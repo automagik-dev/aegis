@@ -53,6 +53,159 @@ c_ok()    { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
 c_warn()  { printf '\033[1;33m⚠\033[0m %s\n' "$*" >&2; }
 c_fail()  { printf '\033[1;31m✗\033[0m %s\n' "$*" >&2; exit 1; }
 
+# ----- package-manager detection --------------------------------------------
+# Populated by detect_pkg_manager on first call.
+PKG_MANAGER=""
+PKG_INSTALL_PREFIX=""
+
+# Probe common package managers in priority order. Sets PKG_MANAGER to the
+# detected name (brew/apt-get/dnf/yum/pacman/apk/nix) and PKG_INSTALL_PREFIX
+# to the command prefix that performs an install. `sudo -E` is prepended on
+# Linux managers when the caller is not root. macOS/brew never uses sudo.
+# Returns 0 if a manager was detected, 1 otherwise.
+detect_pkg_manager() {
+  # Memoize: first call wins.
+  if [ -n "$PKG_MANAGER" ]; then
+    return 0
+  fi
+
+  # sudo prefix for Linux managers when not root. brew deliberately never uses sudo.
+  local sudo_prefix=""
+  if [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo_prefix="sudo -E "
+    fi
+  fi
+
+  if command -v brew >/dev/null 2>&1; then
+    PKG_MANAGER="brew"
+    PKG_INSTALL_PREFIX="brew install"
+    return 0
+  fi
+  if command -v apt-get >/dev/null 2>&1; then
+    PKG_MANAGER="apt-get"
+    PKG_INSTALL_PREFIX="${sudo_prefix}apt-get install -y"
+    return 0
+  fi
+  if command -v dnf >/dev/null 2>&1; then
+    PKG_MANAGER="dnf"
+    PKG_INSTALL_PREFIX="${sudo_prefix}dnf install -y"
+    return 0
+  fi
+  if command -v yum >/dev/null 2>&1; then
+    PKG_MANAGER="yum"
+    PKG_INSTALL_PREFIX="${sudo_prefix}yum install -y"
+    return 0
+  fi
+  if command -v pacman >/dev/null 2>&1; then
+    PKG_MANAGER="pacman"
+    PKG_INSTALL_PREFIX="${sudo_prefix}pacman -S --noconfirm"
+    return 0
+  fi
+  if command -v apk >/dev/null 2>&1; then
+    PKG_MANAGER="apk"
+    PKG_INSTALL_PREFIX="${sudo_prefix}apk add"
+    return 0
+  fi
+  if command -v nix >/dev/null 2>&1; then
+    PKG_MANAGER="nix"
+    PKG_INSTALL_PREFIX="nix profile install nixpkgs#"
+    return 0
+  fi
+  if command -v nix-env >/dev/null 2>&1; then
+    PKG_MANAGER="nix-env"
+    PKG_INSTALL_PREFIX="nix-env -iA nixpkgs."
+    return 0
+  fi
+
+  return 1
+}
+
+# Format the exact command line the installer would run for a given package
+# on the detected manager. Echoes to stdout. Callers must have already run
+# detect_pkg_manager and confirmed it returned 0.
+suggest_install_cmd() {
+  local pkg="$1"
+  case "$PKG_MANAGER" in
+    nix)     printf '%s%s\n' "$PKG_INSTALL_PREFIX" "$pkg" ;;
+    nix-env) printf '%s%s\n' "$PKG_INSTALL_PREFIX" "$pkg" ;;
+    *)       printf '%s %s\n' "$PKG_INSTALL_PREFIX" "$pkg" ;;
+  esac
+}
+
+# Prompt the user for [Y/n] consent. Default is Y (empty response accepts).
+# Reads from /dev/tty so `curl ... | bash` still receives keystrokes. Returns
+# 0 on accept, 1 on decline, 2 if no tty is available (non-interactive run).
+prompt_yes_default() {
+  local answer=""
+  if [ ! -r /dev/tty ]; then
+    return 2
+  fi
+  # Read one line from the controlling tty. The outer 2>/dev/null suppresses
+  # bash's own "/dev/tty: No such device" message when no tty is attached
+  # (e.g., detached subshells). The return code drives behaviour.
+  # shellcheck disable=SC2162  # we want raw read; -r handles backslashes.
+  if ! { IFS= read -r answer < /dev/tty; } 2>/dev/null; then
+    return 2
+  fi
+  case "$answer" in
+    ""|y|Y|yes|YES|Yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Offer to install a missing dependency using the detected package manager.
+# Arguments: <pkg-name> <human-friendly-label>
+# Behaviour:
+#   - No pkg manager detected -> returns 1 (caller handles fallback).
+#   - User accepts -> runs the install command inheriting stdio, re-probes,
+#     returns 0 on success or calls c_fail on failure (stderr preserved).
+#   - User declines -> prints manual-install command + exits 1.
+#   - No tty available (non-interactive pipe) -> prints manual command + exits 1
+#     with a hint about future --auto-install-deps flag.
+offer_install_dep() {
+  local pkg="$1"
+  local label="$2"
+  if ! detect_pkg_manager; then
+    return 1
+  fi
+  local cmd
+  cmd="$(suggest_install_cmd "$pkg")"
+  c_warn "${label} not on PATH."
+  printf 'Will run: %s. [Y/n] ' "$cmd"
+  set +e
+  prompt_yes_default
+  local decision=$?
+  set -e
+  case "$decision" in
+    0)
+      c_info "Installing ${label} via ${PKG_MANAGER}..."
+      # Run via bash -c so the sudo prefix + arguments parse correctly.
+      # stdio inherited: the user sees pkg-manager output + any sudo prompt.
+      if ! bash -c "$cmd"; then
+        c_fail "${label} install failed via ${PKG_MANAGER}. Re-run after fixing, or rerun with --skip-verify (not recommended)."
+      fi
+      if ! command -v "$pkg" >/dev/null 2>&1; then
+        c_fail "${label} still not on PATH after install. Check the ${PKG_MANAGER} output above; you may need to open a new shell or adjust PATH."
+      fi
+      c_ok "${label} installed."
+      return 0
+      ;;
+    1)
+      printf '\n' >&2
+      c_warn "Declined. To install ${label} manually, run:"
+      printf '    %s\n' "$cmd" >&2
+      c_fail "Cannot continue without ${label}. Re-run this installer after installing it, or pass --skip-verify (not recommended)."
+      ;;
+    2)
+      printf '\n' >&2
+      c_warn "No interactive terminal available (non-interactive pipe). To install ${label} manually, run:"
+      printf '    %s\n' "$cmd" >&2
+      c_fail "Cannot prompt for consent without a tty. Install ${label} first, or pass --skip-verify (not recommended)."
+      ;;
+  esac
+}
+
 # ----- platform detection ----------------------------------------------------
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
@@ -79,7 +232,14 @@ NODE_MAJOR=$(node --version | sed 's/^v//' | cut -d. -f1)
 [ "$NODE_MAJOR" -ge 20 ] || c_fail "aegis requires Node.js >=20 (you have $(node --version))"
 
 if [ "$SKIP_VERIFY" != "1" ]; then
-  command -v cosign >/dev/null 2>&1 || c_fail "cosign not on PATH. Install from https://github.com/sigstore/cosign/releases or rerun with --skip-verify (not recommended)."
+  # Single upfront probe for cosign. If missing, try to auto-install via the
+  # host's package manager with explicit user consent. When no supported pkg
+  # manager is detected, fall back to the original manual-install error.
+  if ! command -v cosign >/dev/null 2>&1; then
+    if ! offer_install_dep "cosign" "cosign"; then
+      c_fail "cosign not on PATH and no supported package manager detected (brew/apt-get/dnf/yum/pacman/apk/nix). Install from https://github.com/sigstore/cosign/releases or rerun with --skip-verify (not recommended)."
+    fi
+  fi
   command -v slsa-verifier >/dev/null 2>&1 || c_warn "slsa-verifier not found — SLSA provenance check will be skipped. Install from https://github.com/slsa-framework/slsa-verifier/releases for the full 3-layer attestation check."
 fi
 
