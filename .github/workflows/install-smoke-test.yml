@@ -1,0 +1,74 @@
+name: Install Smoke Test
+
+# Validates the installer end-to-end on every supported Linux distro.
+# Triggers only on PRs that touch install.sh, the Dockerfiles, the harness
+# script, or this workflow itself — no point running this on every doc PR.
+#
+# Pipeline:
+#   1. shellcheck install.sh + scripts/test-install.sh (treat warnings as
+#      errors). This is the cheap fast gate; if the installer doesn't pass
+#      shellcheck, fail before spinning up any containers.
+#   2. Build + run each distro's container in a matrix. Each leg runs the
+#      local install.sh against the pinned release version with
+#      --auto-install-deps and asserts `aegis --version` reports the bare
+#      version string. Logs are captured per-leg so a single distro failure
+#      does not hide problems on the others.
+
+on:
+  pull_request:
+    paths:
+      - install.sh
+      - test/install/**
+      - scripts/test-install.sh
+      - .github/workflows/install-smoke-test.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag to install (must already exist on GitHub Releases)
+        required: false
+        default: v0.1.0
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: shellcheck (warnings = errors)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          shellcheck --severity=warning install.sh
+          shellcheck --severity=warning scripts/test-install.sh
+
+  smoke:
+    name: smoke / ${{ matrix.distro }}
+    needs: shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - ubuntu-24
+          - debian-12
+          - fedora-40
+          - archlinux
+          - alpine-3.19
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve installer version
+        id: ver
+        run: |
+          version="${{ github.event.inputs.version }}"
+          if [ -z "$version" ]; then
+            version="v0.1.0"
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Run smoke test for ${{ matrix.distro }}
+        env:
+          AEGIS_TEST_VERSION: ${{ steps.ver.outputs.version }}
+          AEGIS_TEST_DISTROS: ${{ matrix.distro }}
+        run: bash scripts/test-install.sh

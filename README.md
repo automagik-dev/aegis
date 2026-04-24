@@ -22,8 +22,16 @@ This pulls the latest signed release from GitHub Releases, verifies the cosign s
 
 Requirements on your machine:
 - `curl`, `tar`, `bash`, `node >= 20`
-- `cosign` — install from https://github.com/sigstore/cosign/releases (required by default; bypass with `--skip-verify` for air-gapped)
-- `slsa-verifier` — optional, adds the SLSA layer check
+- `cosign` — **the installer offers to install this for you** via your system's package manager (`brew` / `apt-get` / `dnf` / `yum` / `pacman` / `apk` / `nix`) on first run. Decline if you'd rather install it yourself from https://github.com/sigstore/cosign/releases. Bypass entirely with `--skip-verify` for air-gapped mirrors.
+- `slsa-verifier` — optional. Installer offers to install (default N) for the full 3-layer attestation check; declining is fine.
+
+For unattended installs (CI, Dockerfiles, provisioning scripts), pass `--auto-install-deps` to skip the prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash -s -- --auto-install-deps
+```
+
+Hit a snag? See [`docs/install/troubleshooting.md`](docs/install/troubleshooting.md) for the five common failure modes (no pkg manager, sudo denied, cosign install failure, air-gapped, Windows).
 
 Alternative installers in [`docs/install/`](docs/install/):
 - **No-verify air-gap install** — for mirrors/offline

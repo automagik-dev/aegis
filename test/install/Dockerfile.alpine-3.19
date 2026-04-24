@@ -1,0 +1,9 @@
+# aegis installer smoke test — Alpine 3.19
+# Fresh host with curl + tar + node + sudo, but NO cosign.
+# Alpine ships BusyBox tar; the installer's tar usage is portable.
+FROM alpine:3.19
+
+RUN apk add --no-cache \
+        bash ca-certificates curl nodejs npm sudo tar
+
+WORKDIR /work

@@ -1,0 +1,14 @@
+# aegis installer smoke test — Debian 12 (bookworm)
+# Fresh host with curl + tar + node + sudo, but NO cosign.
+FROM debian:12
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        bash ca-certificates curl gnupg sudo tar \
+ && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

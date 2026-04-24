@@ -71,6 +71,8 @@ The auth token line (`//npm.pkg.github.com/:_authToken=...`) is host-scoped — 
 | `npm ERR! 404 Not Found` | Scope line missing from `.npmrc` (npm tried npmjs.com instead) |
 | PAT works locally but not in CI | CI is using a different identity — set `NODE_AUTH_TOKEN` to a workflow-scoped token |
 
+For installer-script failure modes (no pkg manager, sudo denied, cosign install failures, air-gapped hosts, Windows), see [`troubleshooting.md`](troubleshooting.md).
+
 ## Why GitHub Packages at all?
 
 See the main README's "Why GitHub Releases + installer, not npmjs.com" section. Short version: `aegis` ships its tarball to GitHub Packages as a **secondary** path (the primary is the installer script) so that power users and CI systems can pin versions via `package.json` without losing the triple-attested release chain.

@@ -1,0 +1,16 @@
+# aegis installer smoke test — Ubuntu 24.04
+# Fresh host with curl + tar + node + sudo, but NO cosign.
+# The installer is expected to detect the missing cosign and offer to
+# install it via apt-get under --auto-install-deps.
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        bash ca-certificates curl gnupg sudo tar \
+ && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
