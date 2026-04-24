@@ -1,9 +1,11 @@
 name: Release
 
-# Creates a GitHub Release object (tag + changelog + signed artifacts) on
-# every push to main. npm publishing is handled separately by version.yml;
-# this workflow owns the signed-tarball path + SLSA Level 3 provenance
-# attestation. See .genie/wishes/genie-supply-chain-signing/WISH.md.
+# Creates a GitHub Release object (tag + changelog + signed artifacts) AND
+# publishes the same tarball to GitHub Packages on every `v*` tag push.
+# This workflow owns the signed-tarball path + SLSA Level 3 provenance
+# attestation + the only publish channel (npm.pkg.github.com). npmjs.com is
+# NOT a publish target — explicit trust-model decision after the April 2026
+# CanisterWorm incident. See README "Why GitHub Packages".
 #
 # Signing is cosign keyless (OIDC via GitHub Actions) — KEYLESS ONLY.
 # There is no long-lived fallback key: no private key in repo secrets, no
@@ -20,13 +22,14 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
   id-token: write   # required for cosign keyless OIDC token exchange
   actions: read     # required by slsa-github-generator to read workflow run metadata
+  packages: write   # required to publish the tarball to GitHub Packages (npm.pkg.github.com)
 
 jobs:
   release:
@@ -333,3 +336,86 @@ jobs:
           echo "OK: slsa-verifier rejected mutated tarball"
 
           rm -f "${MUTATED}"
+
+  # Publish to GitHub Packages (npm.pkg.github.com) ONLY — npmjs.com is
+  # explicitly excluded from the trust boundary. This job runs AFTER verify
+  # passes, so only cosign-verified + SLSA-attested + tamper-resistant
+  # tarballs reach the registry.
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    needs: [release, provenance, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # for provenance on npm publish (Node 22+ supports this)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - name: Setup Node for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@automagik-dev'
+
+      - name: Install dependencies
+        env:
+          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-cache-${{ github.run_id }}-${{ github.run_attempt }}
+        run: bun install
+
+      - name: Build CLI
+        run: bun run build
+
+      - name: Download signed tarball from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ needs.release.outputs.tag }}"
+          mkdir -p /tmp/publish
+          cd /tmp/publish
+          gh release download "${TAG}" \
+            --repo "${{ github.repository }}" \
+            --pattern '*.tgz'
+          ls -la
+
+      - name: Publish signed tarball to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd /tmp/publish
+          TARBALL=$(ls *.tgz | head -1)
+          if [ -z "${TARBALL}" ]; then
+            echo "No tarball found from release download" >&2
+            exit 1
+          fi
+          echo "Publishing ${TARBALL} to https://npm.pkg.github.com"
+          # --provenance adds an npm-side provenance attestation (Node 22+) on
+          # top of our SLSA L3 + cosign layers. Triple-attested supply chain:
+          # cosign identity pin + SLSA generator + npm provenance.
+          npm publish "${TARBALL}" --provenance --access public
+
+      - name: Verify package visible on GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          # Retry up to 6 times (60s total) because GitHub Packages index
+          # takes a few seconds to propagate after publish.
+          for i in 1 2 3 4 5 6; do
+            if npm view "@automagik-dev/aegis@${VERSION}" --registry=https://npm.pkg.github.com version 2>/dev/null; then
+              echo "OK: @automagik-dev/aegis@${VERSION} visible on GitHub Packages"
+              exit 0
+            fi
+            echo "Attempt ${i}/6: package not visible yet, sleeping 10s..."
+            sleep 10
+          done
+          echo "FAIL: @automagik-dev/aegis@${VERSION} never appeared on GitHub Packages after 60s" >&2
+          exit 1
