@@ -4,7 +4,7 @@
 > **Versão:** 1.0 · 2026-04-23
 > **Classificação:** Público — distribuição livre para quem tenha instalado qualquer versão afetada
 > **Páginas relacionadas:** [automagik.dev/security](https://automagik.dev/security) (EN) · [automagik.dev/seguranca](https://automagik.dev/seguranca) (PT)
-> **Cópia canônica pública:** [automagik-dev/genie → docs/incident-response/canisterworm.md](https://github.com/automagik-dev/genie/blob/main/docs/incident-response/canisterworm.md)
+> **Cópia canônica pública:** [automagik-dev/aegis → docs/incident-response/canisterworm.md](https://github.com/automagik-dev/aegis/blob/dev/docs/incident-response/canisterworm.md)
 
 ---
 
@@ -14,7 +14,7 @@ Entre 21 e 22 de abril de 2026, versões maliciosas dos pacotes npm `@automagik/
 
 Se você instalou qualquer versão listada abaixo entre **2026-04-21 e 2026-04-22**, leia este documento do início ao fim antes de executar qualquer comando.
 
-O caminho preferencial agora é começar com `genie sec scan`. Os checks manuais abaixo continuam válidos como confirmação adicional, fallback, ou triagem em hosts onde o CLI não está disponível.
+O caminho preferencial agora é começar com `aegis scan`. Os checks manuais abaixo continuam válidos como confirmação adicional, fallback, ou triagem em hosts onde o CLI não está disponível.
 
 ---
 
@@ -64,7 +64,7 @@ Se qualquer versão maliciosa foi instalada na sua máquina, os itens abaixo for
 
 > ⚠️ **Leitura crítica:** o roubo aconteceu no momento da instalação. Rotacionar chaves no GitHub **não desfaz** o que já foi exfiltrado — você precisa rotacionar **todos** os itens listados acima.
 
-Sempre que possível, use também a saída do `genie sec scan` para confirmar quais tipos de material estavam presentes no host. A seção `at-risk local material present on host` não mostra segredos, mas lista os caminhos e artefatos locais que o malware provavelmente teria tentado ler.
+Sempre que possível, use também a saída do `aegis scan` para confirmar quais tipos de material estavam presentes no host. A seção `at-risk local material present on host` não mostra segredos, mas lista os caminhos e artefatos locais que o malware provavelmente teria tentado ler.
 
 ---
 
@@ -72,24 +72,24 @@ Sempre que possível, use também a saída do `genie sec scan` para confirmar qu
 
 Execute todos os checks abaixo. Anote resultados antes de seguir para o Passo 2.
 
-### Usando `genie sec scan` (recomendado)
+### Usando `aegis scan` (recomendado)
 
 Rode primeiro:
 
 ```bash
-genie sec scan --all-homes --root "$PWD"
+aegis scan --all-homes --root "$PWD"
 ```
 
 Se precisar cobrir múltiplos repositórios ou serviços:
 
 ```bash
-genie sec scan --all-homes --root /srv/app --root /opt/service --root "$PWD"
+aegis scan --all-homes --root /srv/app --root /opt/service --root "$PWD"
 ```
 
 Use `--json` quando quiser arquivar ou automatizar a triagem:
 
 ```bash
-genie sec scan --json --all-homes --root "$PWD"
+aegis scan --json --all-homes --root "$PWD"
 ```
 
 Como interpretar:
@@ -202,10 +202,10 @@ ss -tnp 2>/dev/null | grep -iE "api-monitor|icp0|tdtqy|cjn37|143\.198\.237\.25"
 
 | Situação | Veredicto | Ação |
 |----------|-----------|------|
-| `genie sec scan` retorna `LIKELY COMPROMISED` | **INFECTADO** | Desconecte da rede se possível e execute o Passo 3 completo |
-| `genie sec scan` retorna `LIKELY AFFECTED` | **INFECTADO** | Execute o Passo 3 completo |
-| `genie sec scan` retorna `OBSERVED ONLY` | **OBSERVADO** | Continue nos checks manuais; se houver dúvida operacional, trate como infectado |
-| `genie sec scan` retorna `NO FINDINGS` | **CLEAN provisório** | Se o escopo cobriu todos os homes e roots relevantes, siga para o Passo 4 |
+| `aegis scan` retorna `LIKELY COMPROMISED` | **INFECTADO** | Desconecte da rede se possível e execute o Passo 3 completo |
+| `aegis scan` retorna `LIKELY AFFECTED` | **INFECTADO** | Execute o Passo 3 completo |
+| `aegis scan` retorna `OBSERVED ONLY` | **OBSERVADO** | Continue nos checks manuais; se houver dúvida operacional, trate como infectado |
+| `aegis scan` retorna `NO FINDINGS` | **CLEAN provisório** | Se o escopo cobriu todos os homes e roots relevantes, siga para o Passo 4 |
 | Nenhuma versão maliciosa no cache, nenhum IoC | **CLEAN** | Vá direto para o Passo 4 (prevenção) |
 | Versão maliciosa no cache, mas `env-compat.cjs`/`check-env.js` ausentes | **OBSERVADO** | Cache presente mas postinstall pode não ter rodado — trate como **INFECTADO** por precaução (Passo 3) |
 | `env-compat.cjs`, `public.pem` ou `check-env.js` presentes | **INFECTADO** | Execute o Passo 3 completo |
@@ -266,7 +266,7 @@ bun install -g pgserve@1.1.10
 
 > 🔥 **Este é o passo mais importante.** Qualquer credencial presente na máquina no momento da instalação foi exfiltrada. Rotacionar = revogar a existente e emitir uma nova.
 
-Se você executou `genie sec scan`, use a seção `at-risk local material present on host` como checklist para não esquecer nenhuma classe de credencial, carteira, perfil de navegador, ou `.env` local presente no host comprometido.
+Se você executou `aegis scan`, use a seção `at-risk local material present on host` como checklist para não esquecer nenhuma classe de credencial, carteira, perfil de navegador, ou `.env` local presente no host comprometido.
 
 **npm**
 
@@ -488,7 +488,7 @@ Em Sophos, OPNsense, pfSense ou similares, crie um grupo `CanisterWorm-C2` com o
 ## 7. Checklist de um olhar (imprima e cole no monitor)
 
 - [ ] Verifiquei cache bun e npm — nenhuma versão da tabela 1.2 presente
-- [ ] Rodei `genie sec scan --all-homes --root <repo>` e revisei o veredicto
+- [ ] Rodei `aegis scan --all-homes --root <repo>` e revisei o veredicto
 - [ ] Revisei `at-risk local material present on host` para priorizar rotação
 - [ ] Verifiquei `env-compat.cjs`, `public.pem`, `check-env.js` — ausentes
 - [ ] Verifiquei `pgmon.service` e `/tmp/pglog` — ausentes
@@ -541,20 +541,20 @@ Reportes privados de segurança relacionados a qualquer pacote Namastex: `privac
 
 ## 11. Operator playbook (English) — three-branch decision tree
 
-The preceding sections are the public advisory for any operator or organization that installed a compromised version. The following section is the **cold-runnable operator playbook** tied to `genie sec scan` status bands. Use it when you already have `@automagik/genie` on the host and you need a step-by-step remediation recipe that matches exactly what the CLI is about to ask of you.
+The preceding sections are the public advisory for any operator or organization that installed a compromised version. The following section is the **cold-runnable operator playbook** tied to `aegis scan` status bands. Use it when you already have `@automagik/genie` on the host and you need a step-by-step remediation recipe that matches exactly what the CLI is about to ask of you.
 
 ### 11.1 When to use this playbook
 
 Use this playbook when **any** of the following is true:
 
-- `genie sec scan` returned `LIKELY COMPROMISED`, `LIKELY AFFECTED`, or `OBSERVED ONLY`.
+- `aegis scan` returned `LIKELY COMPROMISED`, `LIKELY AFFECTED`, or `OBSERVED ONLY`.
 - A host ran `@automagik/genie` versions `4.260421.33` through `4.260421.40`, or `pgserve` `1.1.11`–`1.1.14`, between **2026-04-21 and 2026-04-22**.
 - An unexpected `pgmon.service`, `/tmp/pglog`, or suspicious `.pth` file appeared on disk.
 - Egress to `telemetry.api-monitor.com`, `143.198.237.25`, or any `*.raw.icp0.io` was logged.
 
 ### 11.2 Scanner output → decision tree
 
-`genie sec scan` emits a status band at the top of its report. That band picks the branch below.
+`aegis scan` emits a status band at the top of its report. That band picks the branch below.
 
 | Scanner status | Branch | Severity |
 |----------------|--------|----------|
@@ -563,11 +563,11 @@ Use this playbook when **any** of the following is true:
 | `OBSERVED ONLY` | [§11.5 OBSERVED ONLY](#115-observed-only--clear--rescan) | Cache/lockfile/log references; no execution evidence |
 | `NO FINDINGS` | Stop — pin versions, enable `ignore-scripts`, keep monitoring | None in scope |
 
-> **Non-negotiable first step for any branch:** verify the CLI you are about to trust is genuine. Run `genie sec verify-install` **before** any `remediate`, `restore`, or `rollback` invocation. If that call cannot return exit `0`, read [§11.7 Escalation — `--unsafe-unverified`](#117-escalation----unsafe-unverified) before touching the host.
+> **Non-negotiable first step for any branch:** verify the CLI you are about to trust is genuine. Run `aegis verify-install` **before** any `remediate`, `restore`, or `rollback` invocation. If that call cannot return exit `0`, read [§11.7 Escalation — `--unsafe-unverified`](#117-escalation----unsafe-unverified) before touching the host.
 
 ### 11.3 LIKELY COMPROMISED — full remediation
 
-**Preconditions:** `genie sec scan` returned `LIKELY COMPROMISED`. A live process, persistence unit, or dropped payload was detected. Assume the host is exfiltrating or about to exfiltrate.
+**Preconditions:** `aegis scan` returned `LIKELY COMPROMISED`. A live process, persistence unit, or dropped payload was detected. Assume the host is exfiltrating or about to exfiltrate.
 
 #### Step 1 of 7 — Snapshot live processes (evidence preservation)
 
@@ -575,7 +575,7 @@ Before any kill action, capture the live state of every PID the scanner flagged.
 
 ```bash
 # Replace <pid-from-findings> with each PID from the scan JSON report:
-#   scan_id=$(genie sec scan --json --all-homes --root "$PWD" | jq -r '.scan_id')
+#   scan_id=$(aegis scan --json --all-homes --root "$PWD" | jq -r '.scan_id')
 #   jq -r '.findings[] | select(.category=="live_process") | .pid' \
 #     "$GENIE_HOME/sec-scan/$scan_id/report.json"
 ps -o pid=,comm=,args= -p <pid-from-findings>
@@ -622,41 +622,41 @@ netsh advfirewall firewall add rule name="CanisterWorm-C2-IP"     dir=out action
 
 #### Step 3 of 7 — Verify the CLI and run an authoritative scan
 
-`genie sec verify-install` must return exit `0` before you trust the binary. If it does not, see [§11.7](#117-escalation----unsafe-unverified).
+`aegis verify-install` must return exit `0` before you trust the binary. If it does not, see [§11.7](#117-escalation----unsafe-unverified).
 
 ```bash
 # Exit 0 = signature + provenance both pass against the pinned identity.
-genie sec verify-install
+aegis verify-install
 
 # Full scan, persisted JSON report, all home directories, filesystem root.
 # GENIE_SEC_SCAN_DISABLED must be unset for this call.
 unset GENIE_SEC_SCAN_DISABLED
-genie sec scan --all-homes --root / --json
+aegis scan --all-homes --root / --json
 ```
 
 Capture the `scan_id` from the output — every subsequent step references it.
 
 #### Step 4 of 7 — Generate a remediation plan, review, apply
 
-`genie sec remediate` is dry-run by default. Generate the plan, read it, then apply.
+`aegis remediate` is dry-run by default. Generate the plan, read it, then apply.
 
 ```bash
 SCAN_ID=<paste-scan-id-from-step-3>
 
 # Dry run — materializes a frozen plan manifest.
-genie sec remediate --dry-run --scan-id "$SCAN_ID"
+aegis remediate --dry-run --scan-id "$SCAN_ID"
 
 # Review the plan: every action class is listed with the target and exit criteria.
 cat "$GENIE_HOME/sec-scan/$SCAN_ID/plan.json" | jq '.actions[] | {type, target, reason}'
 
 # Apply — typed per-action consent is required interactively.
-genie sec remediate --apply --plan "$GENIE_HOME/sec-scan/$SCAN_ID/plan.json"
+aegis remediate --apply --plan "$GENIE_HOME/sec-scan/$SCAN_ID/plan.json"
 ```
 
 If `--apply` aborts partway through, resume with:
 
 ```bash
-genie sec remediate --resume "$GENIE_HOME/sec-scan/$SCAN_ID/resume.json"
+aegis remediate --resume "$GENIE_HOME/sec-scan/$SCAN_ID/resume.json"
 ```
 
 If `--apply` completed but broke something, see [§11.6 Escalation — rollback](#116-escalation--rollback).
@@ -678,7 +678,7 @@ Any credential the host could read at install time was exfiltrated. Rotation = *
 | 9 | Crypto wallets | New seed on a clean device; move funds | revoke.cash approvals audit |
 | 10 | TLS private keys on host | Re-issue via your CA | Verify cert chain on endpoint |
 
-`genie sec remediate --apply` emits a per-host rotation checklist at the end of its run; the table above is the fleet-level order across hosts.
+`aegis remediate --apply` emits a per-host rotation checklist at the end of its run; the table above is the fleet-level order across hosts.
 
 #### Step 6 of 7 — Rebuild image or restore from pre-compromise snapshot
 
@@ -688,7 +688,7 @@ zfs list -t snapshot | awk '$1 ~ /@2026-04-2[01]/'
 aws ec2 describe-snapshots --owner-ids self --filters Name=start-time,Values=2026-04-20*
 ```
 
-If no clean snapshot exists: re-provision the host from a fresh image, install `@automagik/genie` from the current stable line, run `genie sec verify-install`, and restore workload state from your backup channel (not from the compromised host).
+If no clean snapshot exists: re-provision the host from a fresh image, install `@automagik/genie` from the current stable line, run `aegis verify-install`, and restore workload state from your backup channel (not from the compromised host).
 
 #### Step 7 of 7 — Write the post-mortem
 
@@ -696,7 +696,7 @@ Use the template in [§11.8 Post-mortem template](#118-post-mortem-template). Pa
 
 ### 11.4 LIKELY AFFECTED — purge → rescan → rotate
 
-**Preconditions:** `genie sec scan` returned `LIKELY AFFECTED`. Malicious versions were installed or cached. Postinstall execution cannot be ruled out, but no live process, persistence unit, or dropped payload was observed.
+**Preconditions:** `aegis scan` returned `LIKELY AFFECTED`. Malicious versions were installed or cached. Postinstall execution cannot be ruled out, but no live process, persistence unit, or dropped payload was observed.
 
 #### Step 1 of 4 — Purge caches and installed packages
 
@@ -721,8 +721,8 @@ npm uninstall -g @automagik/genie pgserve 2>/dev/null || true
 #### Step 2 of 4 — Re-scan, confirm delta is empty
 
 ```bash
-genie sec verify-install
-genie sec scan --all-homes --root "$PWD" --json > /tmp/rescan.json
+aegis verify-install
+aegis scan --all-homes --root "$PWD" --json > /tmp/rescan.json
 
 # Status MUST now be NO FINDINGS. If it still reports LIKELY AFFECTED:
 # a cache entry was missed. Re-run Step 1.
@@ -742,7 +742,7 @@ Rotate every credential that was **in environment or on disk between 2026-04-21 
 
 ### 11.5 OBSERVED ONLY — clear → rescan
 
-**Preconditions:** `genie sec scan` returned `OBSERVED ONLY`. Only passive references (cache index without unpacked contents, lockfile entries, shell history) were found. No dropped payload, no persistence, no live process.
+**Preconditions:** `aegis scan` returned `OBSERVED ONLY`. Only passive references (cache index without unpacked contents, lockfile entries, shell history) were found. No dropped payload, no persistence, no live process.
 
 #### Step 1 of 3 — Clear the referenced cache / history entries
 
@@ -762,7 +762,7 @@ done
 #### Step 2 of 3 — Re-scan to confirm
 
 ```bash
-genie sec scan --all-homes --root "$PWD" --json > /tmp/rescan.json
+aegis scan --all-homes --root "$PWD" --json > /tmp/rescan.json
 # Expected: NO FINDINGS.
 jq -r '.status' /tmp/rescan.json
 ```
@@ -773,7 +773,7 @@ jq -r '.status' /tmp/rescan.json
 
 ### 11.6 Escalation — rollback
 
-Use `genie sec rollback <scan_id>` when `genie sec remediate --apply` completed but broke something on the host. Rollback walks the audit log in reverse, restoring every quarantined item to its original path with sha256-verified content.
+Use `genie sec rollback <scan_id>` when `aegis remediate --apply` completed but broke something on the host. Rollback walks the audit log in reverse, restoring every quarantined item to its original path with sha256-verified content.
 
 **When to reach for this:** a service fails to start after remediation, a legitimate config file was quarantined, a dependency your application needs is gone. Rollback is safe — it only touches items the audit log recorded.
 
@@ -788,7 +788,7 @@ genie sec restore <quarantine-id>
 
 ### 11.7 Escalation — `--unsafe-unverified`
 
-`genie sec remediate --apply` refuses to run unless `genie sec verify-install` returned exit `0`. The `--unsafe-unverified <INCIDENT_ID>` flag is the only documented escape hatch. Every invocation is written to `$GENIE_SEC_AUDIT_LOG` with the incident id, the typed ack, and the reason.
+`aegis remediate --apply` refuses to run unless `aegis verify-install` returned exit `0`. The `--unsafe-unverified <INCIDENT_ID>` flag is the only documented escape hatch. Every invocation is written to `$GENIE_SEC_AUDIT_LOG` with the incident id, the typed ack, and the reason.
 
 #### When `--unsafe-unverified` is legitimate
 
@@ -800,7 +800,7 @@ A Namastex security officer confirmed the cosign keyless identity is compromised
 
 ```bash
 # Incident id MUST come from the pinned rotation issue; do not invent one.
-genie sec remediate --apply \
+aegis remediate --apply \
   --plan "$GENIE_HOME/sec-scan/$SCAN_ID/plan.json" \
   --unsafe-unverified "SIGNING_CERT_IDENTITY_20260423"
 # Typed ack prompt: I_ACKNOWLEDGE_UNSIGNED_GENIE_SIGNING_CERT_IDENTITY_20260423
@@ -819,7 +819,7 @@ jq -r 'select(.event=="remediate.apply.start" and .unsafe_unverified != null)' \
 The release channel is older than the `genie-supply-chain-signing` cutover and does not ship a signed tarball. `verify-install` returns exit `5` (no signature material found). Common during staged rollouts between `4.260423.x` and `4.260424.x`.
 
 ```bash
-genie sec remediate --apply \
+aegis remediate --apply \
   --plan "$GENIE_HOME/sec-scan/$SCAN_ID/plan.json" \
   --unsafe-unverified "PRE_SIGNING_CHANNEL_260423"
 # Typed ack prompt: I_ACKNOWLEDGE_UNSIGNED_GENIE_PRE_SIGNING_CHANNEL_260423
@@ -830,7 +830,7 @@ genie sec remediate --apply \
 `scripts/test-runbook.sh` and the CI workflow exercise `remediate --apply` against a fixture on an unsigned development tarball. The `INCIDENT_ID` is a fixed sentinel recognized by the harness.
 
 ```bash
-genie sec remediate --apply \
+aegis remediate --apply \
   --plan "$FIXTURE_DIR/plan.json" \
   --unsafe-unverified "TEST_HARNESS_CANISTERWORM_FIXTURE" \
   --auto-confirm-from "$FIXTURE_DIR/consent.json"
@@ -854,7 +854,7 @@ Copy the block below into your incident channel and fill in every field. The `sc
 # Post-mortem: CanisterWorm exposure on <host or fleet scope>
 
 ## Metadata
-- Scan id:          <paste from `genie sec scan --json`>
+- Scan id:          <paste from `aegis scan --json`>
 - Scan bands hit:   LIKELY COMPROMISED / LIKELY AFFECTED / OBSERVED ONLY (delete two)
 - Detection time:   <ISO-8601 UTC>
 - Containment time: <ISO-8601 UTC>
@@ -888,8 +888,8 @@ Copy the block below into your incident channel and fill in every field. The `sc
 ## Timeline
 - <ISO>  Scanner flagged host.
 - <ISO>  Egress blocked at perimeter.
-- <ISO>  `genie sec remediate --dry-run --scan-id ...` reviewed.
-- <ISO>  `genie sec remediate --apply ...` completed.
+- <ISO>  `aegis remediate --dry-run --scan-id ...` reviewed.
+- <ISO>  `aegis remediate --apply ...` completed.
 - <ISO>  Credential rotation completed.
 - <ISO>  Host rebuilt / snapshot restored.
 - <ISO>  Re-scan returned NO FINDINGS.
