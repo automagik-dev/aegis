@@ -1,0 +1,57 @@
+{
+  "name": "@automagik/aegis",
+  "version": "0.1.0",
+  "description": "npm supply-chain incident-response CLI — scan, fix, remediate, verify. Spun out of @automagik/genie sec after the April 2026 CanisterWorm incident.",
+  "type": "module",
+  "bin": {
+    "aegis": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "bun build src/cli/index.ts --target=node --outfile=dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "biome check src",
+    "format": "biome format src --write",
+    "verify:release": "scripts/verify-release.sh"
+  },
+  "files": [
+    "dist/",
+    "scripts/aegis-scan.cjs",
+    "scripts/aegis-remediate.cjs",
+    "signatures/",
+    "schemas/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "keywords": [
+    "security",
+    "npm",
+    "supply-chain",
+    "incident-response",
+    "malware-scanner",
+    "cli"
+  ],
+  "author": "Namastex Labs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/automagik-dev/aegis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/automagik-dev/aegis/issues"
+  },
+  "homepage": "https://github.com/automagik-dev/aegis#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "^1.1.14",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}

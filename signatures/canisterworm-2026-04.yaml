@@ -1,0 +1,32 @@
+# Seed signature pack — CanisterWorm / TeamPCP (April 2026)
+#
+# This YAML is a PLACEHOLDER for the Phase 2 signature subscription system.
+# Today, IOC detection lives inline in `scripts/aegis-scan.cjs` (ported from
+# the genie codebase). This file exists so the `signatures/` directory has
+# structure for Phase 2, when the scanner will be refactored to load packs
+# from YAML instead of hardcoded tables.
+#
+# The full Phase 2 schema is TBD — do not consume this file at runtime yet.
+# The canonical authority for CanisterWorm detection remains aegis-scan.cjs
+# until the loader ships.
+
+schema_version: 0  # schema v0 = placeholder, not-yet-loaded
+id: canisterworm-2026-04
+name: CanisterWorm / TeamPCP npm worm (April 2026)
+reported: 2026-04-21T00:00:00Z
+severity: critical
+status: PLACEHOLDER
+
+summary: |
+  TeamPCP-style npm worm that compromised eight @automagik/genie publishes,
+  three pgserve publishes, and assorted @fairwords / @openwebconcept packages
+  between 2026-04-21T21:28Z and 2026-04-22T03:34Z. Exfils credentials via
+  telemetry.api-monitor.com (POST /v1/telemetry and /v1/drop) with
+  AES-256-CBC-encrypted bodies + X-Session-ID / X-Request-Signature headers.
+  Also observed: ICP canister exfil via raw.icp0.io/drop → cjn37-uyaaa-...
+
+sources:
+  - https://github.com/automagik-dev/aegis/blob/main/docs/incident-response/canisterworm.md
+
+# The actual detection data is still inline in scripts/aegis-scan.cjs.
+# Phase 2 will move it here once the loader + schema ship.
