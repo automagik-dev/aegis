@@ -4,7 +4,18 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash
 #   curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash -s -- --version v0.1.0
-#   curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash -s -- --skip-verify   # air-gapped
+#   curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash -s -- --skip-verify           # air-gapped
+#   curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash -s -- --auto-install-deps     # CI / Docker: assume Y
+#   curl -fsSL https://raw.githubusercontent.com/automagik-dev/aegis/main/install.sh | bash -s -- --no-install-deps       # never install deps
+#
+# Flags:
+#   --version <tag>      Install a specific release (default: latest).
+#   --home <dir>         Override AEGIS_HOME (default: ~/.aegis).
+#   --prefix <dir>       Override symlink prefix (default: ~/.local).
+#   --skip-verify        Bypass cosign + SLSA verification (air-gapped use only).
+#   --auto-install-deps  Assume "yes" on every dep-install prompt (cosign + slsa-verifier).
+#   --no-install-deps    Refuse to install any dep; print manual instructions and exit 1 if blocking.
+#   --help, -h           Show this help and exit.
 #
 # What this does:
 #   1. Detects platform (macOS/Linux, x64/arm64).
@@ -30,6 +41,8 @@ VERSION="${AEGIS_VERSION:-latest}"
 AEGIS_HOME="${AEGIS_HOME:-$HOME/.aegis}"
 PREFIX="${AEGIS_PREFIX:-$HOME/.local}"
 SKIP_VERIFY="${AEGIS_SKIP_VERIFY:-0}"
+AUTO_INSTALL_DEPS="${AEGIS_AUTO_INSTALL_DEPS:-0}"
+NO_INSTALL_DEPS="${AEGIS_NO_INSTALL_DEPS:-0}"
 
 # ----- argument parsing ------------------------------------------------------
 while [ $# -gt 0 ]; do
@@ -38,14 +51,25 @@ while [ $# -gt 0 ]; do
     --home)       AEGIS_HOME="$2"; shift 2;;
     --prefix)     PREFIX="$2"; shift 2;;
     --skip-verify) SKIP_VERIFY=1; shift;;
+    --auto-install-deps) AUTO_INSTALL_DEPS=1; shift;;
+    --no-install-deps)   NO_INSTALL_DEPS=1; shift;;
     --help|-h)
-      sed -n '3,25p' "$0" | sed 's/^# \?//'
+      sed -n '3,35p' "$0" | sed 's/^# \?//'
       exit 0;;
     *)
       printf 'aegis install: unknown flag: %s\n' "$1" >&2
       exit 1;;
   esac
 done
+
+# ----- flag-conflict resolution ---------------------------------------------
+# --auto-install-deps and --no-install-deps are mutually exclusive: one says
+# "always Y", the other says "never install". Detect the conflict order-
+# independently and exit 2 with a clear message before any side effects.
+if [ "$AUTO_INSTALL_DEPS" = "1" ] && [ "$NO_INSTALL_DEPS" = "1" ]; then
+  printf 'aegis install: --auto-install-deps and --no-install-deps are mutually exclusive. Pick one.\n' >&2
+  exit 2
+fi
 
 # ----- logging helpers -------------------------------------------------------
 c_info()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
@@ -154,15 +178,39 @@ prompt_yes_default() {
   esac
 }
 
-# Offer to install a missing dependency using the detected package manager.
+# Run the resolved install command and re-probe for the binary. Shared by the
+# required and optional offer helpers. Calls c_fail if the install fails or
+# the binary is still missing afterwards (treated as a hard error in both
+# cases — once we agreed to install, partial failure is unrecoverable).
+run_install_cmd() {
+  local cmd="$1"
+  local pkg="$2"
+  local label="$3"
+  c_info "Installing ${label} via ${PKG_MANAGER}..."
+  # Run via bash -c so the sudo prefix + arguments parse correctly.
+  # stdio inherited: the user sees pkg-manager output + any sudo prompt.
+  if ! bash -c "$cmd"; then
+    c_fail "${label} install failed via ${PKG_MANAGER}. Re-run after fixing, or rerun with --skip-verify (not recommended)."
+  fi
+  if ! command -v "$pkg" >/dev/null 2>&1; then
+    c_fail "${label} still not on PATH after install. Check the ${PKG_MANAGER} output above; you may need to open a new shell or adjust PATH."
+  fi
+  c_ok "${label} installed."
+}
+
+# Offer to install a REQUIRED missing dependency (e.g., cosign) using the
+# detected package manager. Default-Y prompt; missing dep blocks install.
 # Arguments: <pkg-name> <human-friendly-label>
+# Honors:
+#   - $AUTO_INSTALL_DEPS=1 : skip prompt, log + install.
+#   - $NO_INSTALL_DEPS=1   : skip prompt, print manual instructions + exit 1.
 # Behaviour:
 #   - No pkg manager detected -> returns 1 (caller handles fallback).
 #   - User accepts -> runs the install command inheriting stdio, re-probes,
 #     returns 0 on success or calls c_fail on failure (stderr preserved).
 #   - User declines -> prints manual-install command + exits 1.
 #   - No tty available (non-interactive pipe) -> prints manual command + exits 1
-#     with a hint about future --auto-install-deps flag.
+#     with a hint about --auto-install-deps.
 offer_install_dep() {
   local pkg="$1"
   local label="$2"
@@ -171,6 +219,24 @@ offer_install_dep() {
   fi
   local cmd
   cmd="$(suggest_install_cmd "$pkg")"
+
+  # --no-install-deps: refuse before any prompt fires.
+  if [ "$NO_INSTALL_DEPS" = "1" ]; then
+    c_warn "${label} not on PATH and --no-install-deps set."
+    printf 'To install %s manually, run:\n' "$label" >&2
+    printf '    %s\n' "$cmd" >&2
+    c_fail "Cannot continue without ${label}. Re-run without --no-install-deps, or pass --skip-verify (not recommended)."
+  fi
+
+  # --auto-install-deps: skip the prompt, log loudly, and install.
+  if [ "$AUTO_INSTALL_DEPS" = "1" ]; then
+    printf 'auto-install-deps mode: will install %s without prompting\n' "$label" >&2
+    c_warn "${label} not on PATH."
+    c_info "Will run: ${cmd}"
+    run_install_cmd "$cmd" "$pkg" "$label"
+    return 0
+  fi
+
   c_warn "${label} not on PATH."
   printf 'Will run: %s. [Y/n] ' "$cmd"
   set +e
@@ -179,16 +245,7 @@ offer_install_dep() {
   set -e
   case "$decision" in
     0)
-      c_info "Installing ${label} via ${PKG_MANAGER}..."
-      # Run via bash -c so the sudo prefix + arguments parse correctly.
-      # stdio inherited: the user sees pkg-manager output + any sudo prompt.
-      if ! bash -c "$cmd"; then
-        c_fail "${label} install failed via ${PKG_MANAGER}. Re-run after fixing, or rerun with --skip-verify (not recommended)."
-      fi
-      if ! command -v "$pkg" >/dev/null 2>&1; then
-        c_fail "${label} still not on PATH after install. Check the ${PKG_MANAGER} output above; you may need to open a new shell or adjust PATH."
-      fi
-      c_ok "${label} installed."
+      run_install_cmd "$cmd" "$pkg" "$label"
       return 0
       ;;
     1)
@@ -201,7 +258,69 @@ offer_install_dep() {
       printf '\n' >&2
       c_warn "No interactive terminal available (non-interactive pipe). To install ${label} manually, run:"
       printf '    %s\n' "$cmd" >&2
-      c_fail "Cannot prompt for consent without a tty. Install ${label} first, or pass --skip-verify (not recommended)."
+      c_fail "Cannot prompt for consent without a tty. Install ${label} first, pass --auto-install-deps to install unattended, or pass --skip-verify (not recommended)."
+      ;;
+  esac
+}
+
+# Offer to install an OPTIONAL missing dependency (e.g., slsa-verifier) using
+# the detected package manager. Default-N prompt; declining is fine — caller
+# proceeds without the dep.
+# Arguments: <pkg-name> <human-friendly-label> <prompt-question>
+# Honors:
+#   - $AUTO_INSTALL_DEPS=1 : skip prompt, log + install.
+#   - $NO_INSTALL_DEPS=1   : skip prompt, log a warning, return 1 (no exit).
+# Returns 0 if the dep ended up installed, 1 otherwise. Never calls c_fail
+# unless an install we agreed to actually fails — optional deps must not
+# block the primary install path.
+offer_install_optional_dep() {
+  local pkg="$1"
+  local label="$2"
+  local question="$3"
+  if ! detect_pkg_manager; then
+    return 1
+  fi
+  local cmd
+  cmd="$(suggest_install_cmd "$pkg")"
+
+  # --no-install-deps: silently skip with a brief note; optional deps never
+  # cause exit 1 on this flag (only required deps do).
+  if [ "$NO_INSTALL_DEPS" = "1" ]; then
+    c_warn "${label} not on PATH and --no-install-deps set; skipping optional install. Manual command: ${cmd}"
+    return 1
+  fi
+
+  # --auto-install-deps: opt the user in.
+  if [ "$AUTO_INSTALL_DEPS" = "1" ]; then
+    printf 'auto-install-deps mode: will install %s without prompting\n' "$label" >&2
+    c_info "Will run: ${cmd}"
+    run_install_cmd "$cmd" "$pkg" "$label"
+    return 0
+  fi
+
+  # Interactive default-N prompt. Empty answer == decline.
+  printf '%s [y/N] ' "$question"
+  local answer=""
+  if [ ! -r /dev/tty ]; then
+    printf '\n' >&2
+    c_warn "No tty for optional ${label} prompt; skipping. Pass --auto-install-deps to install unattended."
+    return 1
+  fi
+  # shellcheck disable=SC2162  # we want raw read; -r handles backslashes.
+  if ! { IFS= read -r answer < /dev/tty; } 2>/dev/null; then
+    printf '\n' >&2
+    c_warn "Could not read optional ${label} response; skipping."
+    return 1
+  fi
+  case "$answer" in
+    y|Y|yes|YES|Yes)
+      c_info "Will run: ${cmd}"
+      run_install_cmd "$cmd" "$pkg" "$label"
+      return 0
+      ;;
+    *)
+      c_warn "Skipping optional ${label} install. Manual command: ${cmd}"
+      return 1
       ;;
   esac
 }
@@ -237,10 +356,23 @@ if [ "$SKIP_VERIFY" != "1" ]; then
   # manager is detected, fall back to the original manual-install error.
   if ! command -v cosign >/dev/null 2>&1; then
     if ! offer_install_dep "cosign" "cosign"; then
+      if [ "$NO_INSTALL_DEPS" = "1" ]; then
+        c_warn "cosign not on PATH and --no-install-deps set."
+        printf 'Install cosign manually from https://github.com/sigstore/cosign/releases\n' >&2
+        c_fail "Cannot continue without cosign. Re-run without --no-install-deps, or pass --skip-verify (not recommended)."
+      fi
       c_fail "cosign not on PATH and no supported package manager detected (brew/apt-get/dnf/yum/pacman/apk/nix). Install from https://github.com/sigstore/cosign/releases or rerun with --skip-verify (not recommended)."
     fi
   fi
-  command -v slsa-verifier >/dev/null 2>&1 || c_warn "slsa-verifier not found — SLSA provenance check will be skipped. Install from https://github.com/slsa-framework/slsa-verifier/releases for the full 3-layer attestation check."
+
+  # slsa-verifier is OPTIONAL. If missing AND we have a pkg manager, offer
+  # auto-install with default-N (must be opt-in). If no pkg manager, keep the
+  # original warning-only behaviour and continue without it.
+  if ! command -v slsa-verifier >/dev/null 2>&1; then
+    if ! offer_install_optional_dep "slsa-verifier" "slsa-verifier" "Install slsa-verifier for full 3-layer attestation check?"; then
+      c_warn "slsa-verifier not found — SLSA provenance check will be skipped. Install from https://github.com/slsa-framework/slsa-verifier/releases for the full 3-layer attestation check."
+    fi
+  fi
 fi
 
 # ----- resolve release -------------------------------------------------------
