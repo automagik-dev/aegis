@@ -1,0 +1,9 @@
+# aegis installer smoke test — Fedora 40
+# Fresh host with curl + tar + node + sudo, but NO cosign.
+FROM fedora:40
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        bash ca-certificates curl-minimal nodejs sudo tar \
+ && dnf clean all
+
+WORKDIR /work

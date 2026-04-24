@@ -1,0 +1,9 @@
+# aegis installer smoke test — Arch Linux
+# Fresh host with curl + tar + node + sudo, but NO cosign.
+FROM archlinux:latest
+
+RUN pacman -Sy --noconfirm \
+        bash ca-certificates curl nodejs npm sudo tar \
+ && pacman -Scc --noconfirm
+
+WORKDIR /work
