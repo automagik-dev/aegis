@@ -1,6 +1,6 @@
 {
   "name": "@automagik-dev/aegis",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "npm supply-chain incident-response CLI — scan, fix, remediate, verify. Published via GitHub Packages only (trust-model decision after the April 2026 CanisterWorm incident). Spun out of @automagik/genie sec.",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
@@ -11,7 +11,7 @@
     "aegis": "./dist/cli.js"
   },
   "scripts": {
-    "build": "bun build src/cli/index.ts --target=node --outfile=dist/cli.js",
+    "build": "bun build src/cli/index.ts --target=node --outfile=dist/cli.js --banner='#!/usr/bin/env node' && chmod +x dist/cli.js",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "biome check src",
